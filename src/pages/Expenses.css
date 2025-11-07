@@ -1,0 +1,83 @@
+.expenses-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.filters .form-field {
+  margin: 0;
+}
+
+.expenses-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.expenses-table th,
+.expenses-table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.expenses-table th {
+  font-weight: 600;
+  color: #475569;
+}
+
+.expenses-table tr:last-child td {
+  border-bottom: none;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.totals-box.compact {
+  background-color: #1f2937;
+  color: #f8fafc;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+}
+
+.totals-box.compact span {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.totals-box.compact strong {
+  font-size: 1.125rem;
+}
+
+@media (max-width: 768px) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .totals-box.compact span {
+    justify-content: space-between;
+  }
+
+  .expenses-table {
+    font-size: 0.95rem;
+  }
+}
+

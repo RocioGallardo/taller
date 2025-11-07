@@ -1,34 +1,51 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Route, Routes } from 'react-router-dom'
+import Layout from './components/Layout.jsx'
+import Dashboard from './pages/Dashboard.jsx'
+import ClientsList from './pages/ClientsList.jsx'
+import ClientForm from './pages/ClientForm.jsx'
+import ClientDetail from './pages/ClientDetail.jsx'
+import ClientEdit from './pages/ClientEdit.jsx'
+import BudgetsList from './pages/BudgetsList.jsx'
+import BudgetForm from './pages/BudgetForm.jsx'
+import BudgetDetail from './pages/BudgetDetail.jsx'
+import BudgetEdit from './pages/BudgetEdit.jsx'
+import ExpensesList from './pages/ExpensesList.jsx'
+import ExpenseForm from './pages/ExpenseForm.jsx'
+import ExpenseEdit from './pages/ExpenseEdit.jsx'
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="clientes">
+          <Route index element={<ClientsList />} />
+          <Route path="nuevo" element={<ClientForm />} />
+          <Route path=":id" element={<ClientDetail />} />
+          <Route path=":id/editar" element={<ClientEdit />} />
+        </Route>
+        <Route path="presupuestos">
+          <Route index element={<BudgetsList />} />
+          <Route path="nuevo" element={<BudgetForm />} />
+          <Route path=":id" element={<BudgetDetail />} />
+          <Route path=":id/editar" element={<BudgetEdit />} />
+        </Route>
+        <Route path="gastos">
+          <Route index element={<ExpensesList />} />
+          <Route path="nuevo" element={<ExpenseForm />} />
+          <Route path=":id/editar" element={<ExpenseEdit />} />
+        </Route>
+        <Route
+          path="*"
+          element={
+            <main style={{ padding: '2rem' }}>
+              <h2>Página no encontrada</h2>
+              <p>Revisá la URL o volvé al inicio.</p>
+            </main>
+          }
+        />
+      </Route>
+    </Routes>
   )
 }
 

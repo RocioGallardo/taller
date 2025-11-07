@@ -1,0 +1,120 @@
+.budgets-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.budgets-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.budgets-table th,
+.budgets-table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.budgets-table th {
+  font-weight: 600;
+  color: #475569;
+}
+
+.budgets-table tr:last-child td {
+  border-bottom: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.badge.status-borrador {
+  background-color: #e2e8f0;
+  color: #1f2937;
+}
+
+.badge.status-enviado {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.badge.status-aprobado {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.badge.status-rechazado {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.table-actions {
+  text-align: right;
+}
+
+.item-grid {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  background-color: #f8fafc;
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: 3fr repeat(3, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.item-row.item-header {
+  color: #475569;
+}
+
+.item-row.item-header strong {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.item-row input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5f5;
+  border-radius: 0.75rem;
+}
+
+.item-row button {
+  background-color: transparent;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.totals-box {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+.totals-box span {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.items-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
