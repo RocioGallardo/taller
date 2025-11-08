@@ -21,6 +21,17 @@ service cloud.firestore {
       allow read, write: if isDev();
     }
 
+    match /ingresos/{ingresoId} {
+      allow read, write: if isDev();
+    }
+
+    match /ordenes/{ordenId} {
+      allow read, write: if isDev();
+      match /{document=**} {
+        allow read, write: if isDev();
+      }
+    }
+
     match /configuracion/{docId} {
       allow read, write: if isDev();
     }

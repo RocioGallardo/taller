@@ -12,6 +12,17 @@ import BudgetEdit from './pages/BudgetEdit.jsx'
 import ExpensesList from './pages/ExpensesList.jsx'
 import ExpenseForm from './pages/ExpenseForm.jsx'
 import ExpenseEdit from './pages/ExpenseEdit.jsx'
+import OrdersList from './pages/OrdersList.jsx'
+import OrderForm from './pages/OrderForm.jsx'
+import OrderDetail from './pages/OrderDetail.jsx'
+import OrderEdit from './pages/OrderEdit.jsx'
+import IncomesList from './pages/IncomesList.jsx'
+import IncomeForm from './pages/IncomeForm.jsx'
+import IncomeEdit from './pages/IncomeEdit.jsx'
+import ReportsLayout from './pages/ReportsLayout.jsx'
+import ReportsDebts from './pages/ReportsDebts.jsx'
+import ReportsOrders from './pages/ReportsOrders.jsx'
+import ReportsFinancial from './pages/ReportsFinancial.jsx'
 
 function App() {
   return (
@@ -30,10 +41,30 @@ function App() {
           <Route path=":id" element={<BudgetDetail />} />
           <Route path=":id/editar" element={<BudgetEdit />} />
         </Route>
-        <Route path="gastos">
+        <Route path="egresos">
           <Route index element={<ExpensesList />} />
-          <Route path="nuevo" element={<ExpenseForm />} />
-          <Route path=":id/editar" element={<ExpenseEdit />} />
+          <Route path="gastos">
+            <Route index element={<ExpensesList />} />
+            <Route path="nuevo" element={<ExpenseForm />} />
+            <Route path=":id/editar" element={<ExpenseEdit />} />
+          </Route>
+        </Route>
+        <Route path="ingresos">
+          <Route index element={<IncomesList />} />
+          <Route path="nuevo" element={<IncomeForm />} />
+          <Route path=":id/editar" element={<IncomeEdit />} />
+        </Route>
+        <Route path="ordenes">
+          <Route index element={<OrdersList />} />
+          <Route path="nueva" element={<OrderForm />} />
+          <Route path=":id" element={<OrderDetail />} />
+          <Route path=":id/editar" element={<OrderEdit />} />
+        </Route>
+        <Route path="reportes" element={<ReportsLayout />}>
+          <Route index element={<ReportsDebts />} />
+          <Route path="deudas" element={<ReportsDebts />} />
+          <Route path="ordenes" element={<ReportsOrders />} />
+          <Route path="finanzas" element={<ReportsFinancial />} />
         </Route>
         <Route
           path="*"

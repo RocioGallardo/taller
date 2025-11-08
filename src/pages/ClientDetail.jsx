@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { deleteClient, getClient } from '../services/clients'
+import { listBudgets } from '../services/budgets'
+import { listOrders } from '../services/orders'
 import './Clients.css'
 
 function ClientDetail() {
@@ -10,6 +12,10 @@ function ClientDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [relatedLoading, setRelatedLoading] = useState(true)
+  const [relatedError, setRelatedError] = useState(null)
+  const [clientBudgets, setClientBudgets] = useState([])
+  const [clientOrders, setClientOrders] = useState([])
 
   useEffect(() => {
     const fetchClient = async () => {
@@ -33,10 +39,55 @@ function ClientDetail() {
     fetchClient()
   }, [id])
 
+  useEffect(() => {
+    const loadRelated = async () => {
+      if (!client) return
+      try {
+        setRelatedLoading(true)
+        setRelatedError(null)
+        const [budgetsData, ordersData] = await Promise.all([
+          listBudgets(),
+          listOrders(),
+        ])
+        const budgetsForClient = budgetsData.filter(
+          (budget) => budget.clienteId === client.id,
+        )
+        const ordersForClient = ordersData.filter(
+          (order) => order.clienteId === client.id,
+        )
+        setClientBudgets(budgetsForClient)
+        setClientOrders(ordersForClient)
+      } catch (err) {
+        console.error(err)
+        setRelatedError('No pudimos cargar el historial de este cliente.')
+      } finally {
+        setRelatedLoading(false)
+      }
+    }
+
+    loadRelated()
+  }, [client])
+
   const creadoEn = useMemo(() => {
     if (!client?.creadoEn?.toDate) return null
     return client.creadoEn.toDate().toLocaleString('es-AR')
   }, [client])
+
+  const sortedBudgets = useMemo(() => {
+    return [...clientBudgets].sort((a, b) => {
+      const dateA = a.creadoEn?.toDate ? a.creadoEn.toDate().getTime() : 0
+      const dateB = b.creadoEn?.toDate ? b.creadoEn.toDate().getTime() : 0
+      return dateB - dateA
+    })
+  }, [clientBudgets])
+
+  const sortedOrders = useMemo(() => {
+    return [...clientOrders].sort((a, b) => {
+      const dateA = a.fechaCreacion?.toDate ? a.fechaCreacion.toDate().getTime() : 0
+      const dateB = b.fechaCreacion?.toDate ? b.fechaCreacion.toDate().getTime() : 0
+      return dateB - dateA
+    })
+  }, [clientOrders])
 
   const handleDelete = async () => {
     const confirmation = window.confirm(
@@ -142,11 +193,111 @@ function ClientDetail() {
         </section>
 
         <section className="card full-width">
-          <h3>Presupuestos recientes</h3>
-          <p>
-            Todavía no conectamos esta sección con Firestore. Se mostrará el
-            historial de presupuestos para este cliente en el siguiente paso.
-          </p>
+          <h3>Presupuestos</h3>
+          {relatedLoading ? (
+            <p>Cargando historial…</p>
+          ) : relatedError ? (
+            <p className="error">{relatedError}</p>
+          ) : sortedBudgets.length === 0 ? (
+            <p>Este cliente todavía no tiene presupuestos registrados.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="clients-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Estado</th>
+                    <th>Total</th>
+                    <th>Fecha</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedBudgets.map((budget) => (
+                    <tr key={budget.id}>
+                      <td>
+                        <code className="code-id">#{budget.id.slice(-6).toUpperCase()}</code>
+                      </td>
+                      <td>
+                        <span className={`badge status-${budget.estado}`}>
+                          {budget.estado}
+                        </span>
+                      </td>
+                      <td>
+                        {Number(budget.totalGeneral || 0).toLocaleString('es-AR', {
+                          style: 'currency',
+                          currency: 'ARS',
+                        })}
+                      </td>
+                      <td>
+                        {budget.creadoEn?.toDate
+                          ? budget.creadoEn.toDate().toLocaleDateString('es-AR')
+                          : '—'}
+                      </td>
+                      <td className="table-actions">
+                        <Link to={`/presupuestos/${budget.id}`} className="link">
+                          Ver
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className="card full-width">
+          <h3>Órdenes de trabajo</h3>
+          {relatedLoading ? (
+            <p>Cargando historial…</p>
+          ) : relatedError ? (
+            <p className="error">{relatedError}</p>
+          ) : sortedOrders.length === 0 ? (
+            <p>Este cliente todavía no tiene órdenes registradas.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="clients-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Estado</th>
+                    <th>Vehículo</th>
+                    <th>Total estimado</th>
+                    <th>Creada</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedOrders.map((order) => (
+                    <tr key={order.id}>
+                      <td>
+                        <code className="code-id">#{order.id.slice(-6).toUpperCase()}</code>
+                      </td>
+                      <td>{order.estado?.replace('_', ' ')}</td>
+                      <td>{order.vehiculo || '—'}</td>
+                      <td>
+                        {Number(order.totalEstimado || 0).toLocaleString('es-AR', {
+                          style: 'currency',
+                          currency: 'ARS',
+                        })}
+                      </td>
+                      <td>
+                        {order.fechaCreacion?.toDate
+                          ? order.fechaCreacion.toDate().toLocaleDateString('es-AR')
+                          : '—'}
+                      </td>
+                      <td className="table-actions">
+                        <Link to={`/ordenes/${order.id}`} className="link">
+                          Ver
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section className="card full-width">

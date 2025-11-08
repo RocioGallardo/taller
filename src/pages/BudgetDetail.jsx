@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { deleteBudget, getBudget } from '../services/budgets'
+import { getClient } from '../services/clients'
 import './Budgets.css'
 import './Clients.css'
 
@@ -18,6 +19,7 @@ function BudgetDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [clienteTelefono, setClienteTelefono] = useState('')
 
   useEffect(() => {
     const fetchBudget = async () => {
@@ -29,6 +31,14 @@ function BudgetDetail() {
           return
         }
         setBudget(data)
+        setClienteTelefono(data.clienteTelefono ?? '')
+
+        if (!data.clienteTelefono && data.clienteId) {
+          const client = await getClient(data.clienteId)
+          if (client?.telefono) {
+            setClienteTelefono(client.telefono)
+          }
+        }
       } catch (err) {
         console.error(err)
         setError('Ocurrió un error al cargar el presupuesto.')
@@ -47,19 +57,65 @@ function BudgetDetail() {
       .toLocaleString('es-AR')
   }, [budget])
 
-  const enviarPorWhatsapp = () => {
-    if (!budget) return
-    if (!budget.clienteTelefono) {
-      alert(
-        'El cliente no tiene un número de teléfono cargado. Editá el cliente para agregarlo.',
+  const totals = useMemo(() => {
+    if (!budget) {
+      return {
+        subtotalManoObra: 0,
+        subtotalMateriales: 0,
+        subtotalPanos: 0,
+        totalGeneral: 0,
+      }
+    }
+    const subtotalPanos = budget.items?.reduce((acc, item) => {
+      if (!item.usaPanos) return acc
+      return (
+        acc + Number(item.cantidadPanos || 0) * Number(item.precioPorPano || 0)
       )
-      return
+    }, 0) ?? 0
+    return {
+      subtotalManoObra: Number(budget.subtotalManoObra || 0),
+      subtotalMateriales: Number(budget.subtotalMateriales || 0),
+      subtotalPanos,
+      totalGeneral: Number(budget.totalGeneral || 0),
+    }
+  }, [budget])
+
+  const formatPhoneForWhatsapp = (phone) => {
+    if (!phone) return null
+    let digits = phone.replace(/\D/g, '')
+    if (!digits) return null
+
+    if (digits.startsWith('00')) {
+      digits = digits.slice(2)
     }
 
-    const telefono = budget.clienteTelefono.replace(/\D/g, '')
-    if (!telefono) {
+    if (digits.startsWith('549')) {
+      return digits
+    }
+
+    if (digits.startsWith('54')) {
+      const rest = digits.slice(2).replace(/^0+/, '')
+      if (!rest) return null
+      return rest.startsWith('9') ? `54${rest}` : `549${rest}`
+    }
+
+    digits = digits.replace(/^0+/, '')
+    if (digits.length < 9) {
+      return null
+    }
+
+    return `549${digits}`
+  }
+
+  const enviarPorWhatsapp = () => {
+    if (!budget) return
+    const rawPhone = clienteTelefono ?? budget.clienteTelefono ?? ''
+    const digitsDetected = rawPhone.replace(/\D/g, '')
+    const telefonoFormateado = formatPhoneForWhatsapp(rawPhone)
+
+    if (!telefonoFormateado) {
       alert(
-        'El número de teléfono del cliente no es válido. Verificalo antes de enviar.',
+        `El número de teléfono del cliente no es válido o está incompleto.\nValor actual: ${rawPhone || '(vacío)'}\nDígitos detectados: ${digitsDetected || '(sin dígitos)'}\n\nVerificá que incluya código de área. Ejemplo: 3511234567 o +54 9 351 1234567.\nEditá el cliente para corregirlo.`,
       )
       return
     }
@@ -91,8 +147,15 @@ function BudgetDetail() {
       'Quedo atento a tu confirmación. ¡Gracias!',
     ].join('\n')
 
-    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(texto)}`
+    const url = `https://wa.me/${telefonoFormateado}?text=${encodeURIComponent(
+      texto,
+    )}`
     window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleCreateOrder = () => {
+    if (!budget) return
+    navigate(`/ordenes/nueva?presupuestoId=${budget.id}`)
   }
 
   const handleDelete = async () => {
@@ -139,6 +202,7 @@ function BudgetDetail() {
   if (!budget) return null
 
   const estadoLegible = ESTADO_LABELS[budget.estado] ?? budget.estado
+  const puedeCrearOrden = budget.estado === 'aprobado'
 
   return (
     <div className="budgets-page">
@@ -156,6 +220,19 @@ function BudgetDetail() {
           <Link to={`/presupuestos/${budget.id}/editar`} className="button primary">
             Editar
           </Link>
+          <button
+            type="button"
+            className="button"
+            onClick={handleCreateOrder}
+            disabled={!puedeCrearOrden}
+            title={
+              puedeCrearOrden
+                ? 'Generar una orden de trabajo a partir de este presupuesto'
+                : 'Para crear una orden primero marcá el presupuesto como aprobado.'
+            }
+          >
+            Crear orden
+          </button>
           <button
             type="button"
             className="button ghost"
@@ -184,9 +261,21 @@ function BudgetDetail() {
               <dd>{budget.vehiculo || '—'}</dd>
             </div>
             <div>
+              <dt>Aseguradora</dt>
+              <dd>{budget.aseguradora || '—'}</dd>
+            </div>
+            <div>
+              <dt>N° de póliza</dt>
+              <dd>{budget.numeroPoliza || '—'}</dd>
+            </div>
+            <div>
+              <dt>N° de siniestro</dt>
+              <dd>{budget.numeroSiniestro || '—'}</dd>
+            </div>
+            <div>
               <dt>Total</dt>
               <dd>
-                {budget.totalGeneral.toLocaleString('es-AR', {
+                {totals.totalGeneral.toLocaleString('es-AR', {
                   style: 'currency',
                   currency: 'ARS',
                 })}
@@ -201,43 +290,67 @@ function BudgetDetail() {
           </dl>
         </section>
 
-        <section className="card full-width">
+        <section className="card full-width table-card">
           <h3>Ítems incluidos</h3>
-          <table className="budgets-table">
-            <thead>
-              <tr>
-                <th>Descripción</th>
-                <th>Mano de obra</th>
-                <th>Materiales</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {budget.items.map((item, index) => (
-                <tr key={index}>
-                  <td>{item.descripcion}</td>
-                  <td>
-                    {Number(item.manoObra || 0).toLocaleString('es-AR', {
-                      style: 'currency',
-                      currency: 'ARS',
-                    })}
-                  </td>
-                  <td>
-                    {Number(item.materiales || 0).toLocaleString('es-AR', {
-                      style: 'currency',
-                      currency: 'ARS',
-                    })}
-                  </td>
-                  <td>
-                    {Number(item.subtotal || 0).toLocaleString('es-AR', {
-                      style: 'currency',
-                      currency: 'ARS',
-                    })}
-                  </td>
+          <div className="table-scroll">
+            <table className="budgets-table">
+              <thead>
+                <tr>
+                  <th>Descripción</th>
+                  <th>Mano de obra</th>
+                  <th>Materiales</th>
+                  <th>Paños</th>
+                  <th>Subtotal</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {budget.items.map((item, index) => {
+                  const manoObra = Number(item.manoObra || 0).toLocaleString('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                  })
+                  const materiales = Number(item.materiales || 0).toLocaleString(
+                    'es-AR',
+                    {
+                      style: 'currency',
+                      currency: 'ARS',
+                    },
+                  )
+                  const panosMonto = (item.usaPanos
+                    ? Number(item.cantidadPanos || 0) * Number(item.precioPorPano || 0)
+                    : 0
+                  ).toLocaleString('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                  })
+                  const subtotal = Number(item.subtotal || 0).toLocaleString('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                  })
+                  return (
+                    <tr key={index}>
+                      <td>
+                        {item.descripcion}
+                        {item.usaPanos && (
+                          <small className="helper-text">
+                            {Number(item.cantidadPanos || 0)} paños x{' '}
+                            {Number(item.precioPorPano || 0).toLocaleString('es-AR', {
+                              style: 'currency',
+                              currency: 'ARS',
+                            })}
+                          </small>
+                        )}
+                      </td>
+                      <td>{manoObra}</td>
+                      <td>{materiales}</td>
+                      <td>{panosMonto}</td>
+                      <td>{subtotal}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="card full-width">
@@ -246,7 +359,7 @@ function BudgetDetail() {
             <span>
               Mano de obra
               <strong>
-                {budget.subtotalManoObra.toLocaleString('es-AR', {
+                {totals.subtotalManoObra.toLocaleString('es-AR', {
                   style: 'currency',
                   currency: 'ARS',
                 })}
@@ -255,7 +368,16 @@ function BudgetDetail() {
             <span>
               Materiales
               <strong>
-                {budget.subtotalMateriales.toLocaleString('es-AR', {
+                {totals.subtotalMateriales.toLocaleString('es-AR', {
+                  style: 'currency',
+                  currency: 'ARS',
+                })}
+              </strong>
+            </span>
+            <span>
+              Paños
+              <strong>
+                {totals.subtotalPanos.toLocaleString('es-AR', {
                   style: 'currency',
                   currency: 'ARS',
                 })}
@@ -264,13 +386,40 @@ function BudgetDetail() {
             <span>
               Total
               <strong>
-                {budget.totalGeneral.toLocaleString('es-AR', {
+                {totals.totalGeneral.toLocaleString('es-AR', {
                   style: 'currency',
                   currency: 'ARS',
                 })}
               </strong>
             </span>
           </div>
+        </section>
+
+        <section className="card full-width">
+          <h3>Adjuntos</h3>
+          {budget.adjuntos?.length ? (
+            <div className="attachments-grid">
+              {budget.adjuntos.map((attachment) => (
+                <a
+                  key={attachment.storagePath}
+                  className="attachment-existing"
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img src={attachment.url} alt={attachment.nombre} />
+                  <div className="attachment-info">
+                    <span title={attachment.nombre}>{attachment.nombre}</span>
+                    <span>
+                      {Math.round((attachment.size ?? 0) / 1024)} KB
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p>No hay adjuntos cargados.</p>
+          )}
         </section>
 
         <section className="card full-width">

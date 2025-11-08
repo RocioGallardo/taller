@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
 import { createExpense } from '../services/expenses'
+import { listOrders } from '../services/orders'
 import './Expenses.css'
 import './Clients.css'
 
@@ -12,6 +13,7 @@ const TIPOS = [
   { value: 'insumos', label: 'Insumos' },
   { value: 'herramientas', label: 'Herramientas' },
   { value: 'impuestos', label: 'Impuestos' },
+  { value: 'sueldos', label: 'Sueldos' },
   { value: 'otros', label: 'Otros' },
 ]
 
@@ -23,6 +25,8 @@ const METODOS = [
   'Otro',
 ]
 
+const EMPLEADOS = ['Ariel', 'Maximiliano', 'Otro']
+
 const INITIAL_STATE = {
   tipo: 'general',
   descripcion: '',
@@ -30,6 +34,9 @@ const INITIAL_STATE = {
   fecha: new Date().toISOString().slice(0, 10),
   metodoPago: '',
   notas: '',
+  ordenId: '',
+  empleadoNombre: '',
+  empleadoCustom: '',
 }
 
 function ExpenseForm() {
@@ -37,22 +44,65 @@ function ExpenseForm() {
   const [form, setForm] = useState(INITIAL_STATE)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
+
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        setOrdersLoading(true)
+        const data = await listOrders()
+        const opciones = data.map((order) => ({
+          id: order.id,
+          label: `${order.clienteNombre || 'Cliente'} · ${order.vehiculo || 'Vehículo'}`,
+        }))
+        setOrders(opciones)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setOrdersLoading(false)
+      }
+    }
+
+    loadOrders()
+  }, [])
 
   const handleChange = (event) => {
     const { name, value } = event.target
+
+    if (name === 'tipo') {
+      setForm((prev) => ({
+        ...prev,
+        [name]: value,
+        ordenId: value === 'insumos' ? prev.ordenId : '',
+        empleadoNombre: value === 'sueldos' ? prev.empleadoNombre : '',
+        empleadoCustom: value === 'sueldos' ? prev.empleadoCustom : '',
+      }))
+      return
+    }
+
+    if (name === 'empleadoNombre') {
+      setForm((prev) => ({
+        ...prev,
+        empleadoNombre: value,
+        empleadoCustom: value === 'Otro' ? prev.empleadoCustom : '',
+      }))
+      return
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (!form.descripcion.trim()) {
-      setError('La descripción es obligatoria.')
+    if (form.tipo !== 'sueldos' && !form.descripcion.trim()) {
+      setError('La descripción del egreso es obligatoria.')
       return
     }
 
     if (!form.monto || Number(form.monto) <= 0) {
-      setError('El monto debe ser mayor a 0.')
+      setError('El monto del egreso debe ser mayor a 0.')
       return
     }
 
@@ -64,20 +114,49 @@ function ExpenseForm() {
       const timestamp = Timestamp.fromDate(fechaDate)
       const periodo = form.fecha.slice(0, 7)
 
+      let empleadoFinal = ''
+      if (form.tipo === 'sueldos') {
+        empleadoFinal =
+          form.empleadoNombre === 'Otro'
+            ? form.empleadoCustom.trim()
+            : form.empleadoNombre.trim()
+
+        if (!empleadoFinal) {
+          setError('Seleccioná el empleado al que corresponde el sueldo.')
+          setSubmitting(false)
+          return
+        }
+      }
+
+      const descripcionFinal = form.descripcion.trim()
+        ? form.descripcion.trim()
+        : form.tipo === 'sueldos'
+          ? `Pago de sueldo - ${empleadoFinal}`
+          : ''
+
+      if (!descripcionFinal) {
+        setError('La descripción del egreso es obligatoria.')
+        setSubmitting(false)
+        return
+      }
+
       await createExpense({
         tipo: form.tipo,
-        descripcion: form.descripcion.trim(),
+        descripcion: descripcionFinal,
         monto: Number(form.monto),
         fecha: timestamp,
         metodoPago: form.metodoPago.trim(),
         notas: form.notas.trim(),
         periodo,
+        ordenId:
+          form.tipo === 'insumos' && form.ordenId ? form.ordenId : null,
+        empleadoNombre: empleadoFinal,
       })
 
-      navigate('/gastos')
+      navigate('/egresos/gastos')
     } catch (err) {
       console.error(err)
-      setError('No pudimos guardar el gasto. Intentalo de nuevo.')
+      setError('No pudimos guardar el egreso. Intentalo de nuevo.')
     } finally {
       setSubmitting(false)
     }
@@ -92,10 +171,10 @@ function ExpenseForm() {
     <div className="expenses-page">
       <header className="page-header">
         <div>
-          <h2>Registrar gasto</h2>
-          <p>Cargá los gastos para mantener el control mensual.</p>
+          <h2>Registrar egreso</h2>
+          <p>Cargá los egresos para mantener el control mensual.</p>
         </div>
-        <Link to="/gastos" className="button">
+        <Link to="/egresos/gastos" className="button">
           ← Volver
         </Link>
       </header>
@@ -173,6 +252,64 @@ function ExpenseForm() {
             </select>
           </div>
 
+          {form.tipo === 'sueldos' && (
+            <>
+              <div className="form-field">
+                <label htmlFor="empleadoNombre">Empleado</label>
+                <select
+                  id="empleadoNombre"
+                  name="empleadoNombre"
+                  value={form.empleadoNombre}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccioná…</option>
+                  {EMPLEADOS.map((empleado) => (
+                    <option key={empleado} value={empleado}>
+                      {empleado}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {form.empleadoNombre === 'Otro' && (
+                <div className="form-field">
+                  <label htmlFor="empleadoCustom">Nombre del empleado</label>
+                  <input
+                    id="empleadoCustom"
+                    name="empleadoCustom"
+                    value={form.empleadoCustom}
+                    onChange={handleChange}
+                    placeholder="Ej: Juan Pérez"
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {form.tipo === 'insumos' && (
+            <div className="form-field">
+              <label htmlFor="ordenId">Orden de trabajo</label>
+              <select
+                id="ordenId"
+                name="ordenId"
+                value={form.ordenId}
+                onChange={handleChange}
+                disabled={ordersLoading}
+              >
+                <option value="">Sin orden</option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.label}
+                  </option>
+                ))}
+              </select>
+              <small>
+                Opcional: asociá este egreso a una orden para que aparezca en su
+                detalle.
+              </small>
+            </div>
+          )}
+
           <div className="form-field full-width">
             <label htmlFor="notas">Notas</label>
             <textarea
@@ -188,7 +325,7 @@ function ExpenseForm() {
 
           <div className="form-actions">
             <button type="submit" className="button primary" disabled={submitting}>
-              {submitting ? 'Guardando…' : 'Guardar gasto'}
+              {submitting ? 'Guardando…' : 'Guardar egreso'}
             </button>
             <button type="reset" className="button ghost" disabled={submitting}>
               Limpiar

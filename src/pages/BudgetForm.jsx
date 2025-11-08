@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { listClients } from '../services/clients'
-import { createBudget } from '../services/budgets'
+import { listClients, createClient } from '../services/clients'
+import { createBudget, setBudgetAttachments } from '../services/budgets'
+import { uploadBudgetAttachment } from '../services/storage'
 import './Budgets.css'
 import './Clients.css'
 
@@ -12,21 +13,73 @@ const ESTADOS = [
   { value: 'rechazado', label: 'Rechazado' },
 ]
 
-const EMPTY_ITEM = { descripcion: '', manoObra: 0, materiales: 0, subtotal: 0 }
+const EMPTY_ITEM = {
+  descripcion: '',
+  manoObra: '',
+  materiales: '',
+  usaPanos: false,
+  cantidadPanos: '',
+  precioPorPano: '',
+  subtotal: 0,
+}
+
+const INITIAL_FORM = {
+  clienteId: '',
+  estado: 'borrador',
+  vehiculo: '',
+  aseguradora: '',
+  numeroPoliza: '',
+  numeroSiniestro: '',
+  items: [{ ...EMPTY_ITEM }],
+  observaciones: '',
+}
+
+const INITIAL_NEW_CLIENT = {
+  nombre: '',
+  telefono: '',
+  email: '',
+  direccion: '',
+}
+
+function calculateSubtotal(item) {
+  const manoObra = Number(item.manoObra || 0)
+  const materiales = Number(item.materiales || 0)
+  const panos = item.usaPanos
+    ? Number(item.cantidadPanos || 0) * Number(item.precioPorPano || 0)
+    : 0
+  return manoObra + materiales + panos
+}
 
 function BudgetForm() {
   const navigate = useNavigate()
   const [clients, setClients] = useState([])
   const [loadingClients, setLoadingClients] = useState(false)
-  const [form, setForm] = useState({
-    clienteId: '',
-    estado: 'borrador',
-    vehiculo: '',
-    items: [{ ...EMPTY_ITEM }],
-    observaciones: '',
-  })
+  const [form, setForm] = useState(INITIAL_FORM)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showNewClient, setShowNewClient] = useState(false)
+  const [newClient, setNewClient] = useState(INITIAL_NEW_CLIENT)
+  const [creatingClient, setCreatingClient] = useState(false)
+
+  const [attachments, setAttachments] = useState([])
+
+  useEffect(() => {
+    return () => {
+      attachments.forEach((attachment) => {
+        if (attachment.preview) URL.revokeObjectURL(attachment.preview)
+      })
+    }
+  }, [attachments])
+
+  useEffect(() => {
+    if (!form.clienteId) return
+    const selected = clients.find((client) => client.id === form.clienteId)
+    if (selected) {
+      setSearchTerm(selected.nombre)
+    }
+  }, [form.clienteId, clients])
 
   useEffect(() => {
     const loadClients = async () => {
@@ -36,9 +89,7 @@ function BudgetForm() {
         setClients(data)
       } catch (err) {
         console.error(err)
-        setError(
-          'No pudimos cargar los clientes. Refrescá la página o intentá más tarde.',
-        )
+        setError('No pudimos cargar la lista de clientes.')
       } finally {
         setLoadingClients(false)
       }
@@ -47,22 +98,22 @@ function BudgetForm() {
     loadClients()
   }, [])
 
-  const selectedClient = useMemo(
-    () => clients.find((client) => client.id === form.clienteId),
-    [clients, form.clienteId],
-  )
+  const filteredClients = useMemo(() => {
+    if (!searchTerm.trim()) return clients
+    const normalized = searchTerm.trim().toLowerCase()
+    return clients.filter((client) =>
+      client.nombre.toLowerCase().includes(normalized),
+    )
+  }, [clients, searchTerm])
 
-  useEffect(() => {
-    if (selectedClient && !form.vehiculo) {
-      const principalVehiculo =
-        selectedClient.vehiculos?.find((veh) => veh.principal)?.descripcion ??
-        selectedClient.vehiculos?.[0]?.descripcion ??
-        ''
-      if (principalVehiculo) {
-        setForm((prev) => ({ ...prev, vehiculo: principalVehiculo }))
-      }
-    }
-  }, [selectedClient, form.vehiculo])
+  const suggestedName = useMemo(() => {
+    const term = searchTerm.trim()
+    if (!term) return ''
+    const exists = clients.some(
+      (client) => client.nombre.toLowerCase() === term.toLowerCase(),
+    )
+    return exists ? '' : term
+  }, [clients, searchTerm])
 
   const totals = useMemo(() => {
     const subtotalManoObra = form.items.reduce(
@@ -73,11 +124,17 @@ function BudgetForm() {
       (acc, item) => acc + Number(item.materiales || 0),
       0,
     )
-    const totalGeneral = subtotalManoObra + subtotalMateriales
-    return { subtotalManoObra, subtotalMateriales, totalGeneral }
+    const subtotalPanos = form.items.reduce((acc, item) => {
+      if (!item.usaPanos) return acc
+      return (
+        acc + Number(item.cantidadPanos || 0) * Number(item.precioPorPano || 0)
+      )
+    }, 0)
+    const totalGeneral = subtotalManoObra + subtotalMateriales + subtotalPanos
+    return { subtotalManoObra, subtotalMateriales, subtotalPanos, totalGeneral }
   }, [form.items])
 
-  const handleChange = (event) => {
+  const handleFormChange = (event) => {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
   }
@@ -86,10 +143,11 @@ function BudgetForm() {
     setForm((prev) => {
       const items = prev.items.map((item, idx) => {
         if (idx !== index) return item
-        const updated = { ...item, [field]: value }
-        const manoObra = Number(updated.manoObra || 0)
-        const materiales = Number(updated.materiales || 0)
-        return { ...updated, subtotal: manoObra + materiales }
+        const updated = {
+          ...item,
+          [field]: field === 'usaPanos' ? Boolean(value) : value,
+        }
+        return { ...updated, subtotal: calculateSubtotal(updated) }
       })
       return { ...prev, items }
     })
@@ -109,6 +167,59 @@ function BudgetForm() {
     }))
   }
 
+  const handleAttachmentChange = (event) => {
+    const files = Array.from(event.target.files ?? [])
+    if (!files.length) return
+    const mapped = files.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }))
+    setAttachments((prev) => [...prev, ...mapped])
+  }
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => {
+      const next = [...prev]
+      const [removed] = next.splice(index, 1)
+      if (removed?.preview) {
+        URL.revokeObjectURL(removed.preview)
+      }
+      return next
+    })
+  }
+
+  const handleCreateClient = async (event) => {
+    event.preventDefault()
+    if (!newClient.nombre.trim()) {
+      setError('Ingresá el nombre del nuevo cliente.')
+      return
+    }
+
+    try {
+      setCreatingClient(true)
+      setError(null)
+      const payload = {
+        nombre: newClient.nombre.trim(),
+        telefono: newClient.telefono.trim(),
+        email: newClient.email.trim() || null,
+        direccion: newClient.direccion.trim() || null,
+        vehiculos: [],
+        trabajosActivos: 0,
+      }
+      const created = await createClient(payload)
+      setClients((prev) => [created, ...prev])
+      setForm((prev) => ({ ...prev, clienteId: created.id }))
+      setSearchTerm(created.nombre)
+      setShowNewClient(false)
+      setNewClient(INITIAL_NEW_CLIENT)
+    } catch (clientError) {
+      console.error(clientError)
+      setError('No pudimos crear el cliente. Revisá los datos e intentá nuevamente.')
+    } finally {
+      setCreatingClient(false)
+    }
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
 
@@ -125,28 +236,71 @@ function BudgetForm() {
     try {
       setSubmitting(true)
       setError(null)
-      const cliente = clients.find((c) => c.id === form.clienteId)
 
-      const budget = await createBudget({
+      const cliente = clients.find((c) => c.id === form.clienteId)
+      const payload = {
         clienteId: form.clienteId,
         clienteNombre: cliente?.nombre ?? '',
         clienteTelefono: cliente?.telefono ?? '',
         estado: form.estado,
         vehiculo: form.vehiculo,
-        items: form.items,
+        aseguradora: form.aseguradora,
+        numeroPoliza: form.numeroPoliza,
+        numeroSiniestro: form.numeroSiniestro,
+        items: form.items.map((item) => ({
+          ...item,
+          manoObra: Number(item.manoObra || 0),
+          materiales: Number(item.materiales || 0),
+          cantidadPanos: Number(item.cantidadPanos || 0),
+          precioPorPano: Number(item.precioPorPano || 0),
+          subtotal: calculateSubtotal(item),
+        })),
         subtotalManoObra: totals.subtotalManoObra,
         subtotalMateriales: totals.subtotalMateriales,
         totalGeneral: totals.totalGeneral,
         observaciones: form.observaciones,
+        adjuntos: [],
+      }
+
+      const budget = await createBudget(payload)
+
+      if (attachments.length > 0) {
+        const uploaded = []
+        for (const attachment of attachments) {
+          try {
+            const meta = await uploadBudgetAttachment(budget.id, attachment.file)
+            uploaded.push(meta)
+          } catch (uploadError) {
+            console.error('No se pudo subir un adjunto:', uploadError)
+          }
+        }
+        if (uploaded.length > 0) {
+          await setBudgetAttachments(budget.id, uploaded)
+        }
+      }
+
+      attachments.forEach((attachment) => {
+        if (attachment.preview) {
+          URL.revokeObjectURL(attachment.preview)
+        }
       })
 
       navigate(`/presupuestos/${budget.id}`)
-    } catch (err) {
-      console.error(err)
-      setError('No pudimos guardar el presupuesto. Probá nuevamente.')
+    } catch (submitError) {
+      console.error(submitError)
+      setError('No pudimos guardar el presupuesto. Revisá los datos e intentá nuevamente.')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleReset = () => {
+    attachments.forEach((attachment) => {
+      if (attachment.preview) URL.revokeObjectURL(attachment.preview)
+    })
+    setAttachments([])
+    setForm(INITIAL_FORM)
+    setError(null)
   }
 
   return (
@@ -154,7 +308,7 @@ function BudgetForm() {
       <header className="page-header">
         <div>
           <h2>Nuevo presupuesto</h2>
-          <p>Cargá los detalles del trabajo y calculá el total automáticamente.</p>
+          <p>Cargá los detalles del trabajo, incluí paños y adjuntá fotos de apoyo.</p>
         </div>
         <Link to="/presupuestos" className="button">
           ← Volver
@@ -162,24 +316,120 @@ function BudgetForm() {
       </header>
 
       <div className="card">
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <div className="form-field">
-            <label htmlFor="clienteId">Cliente</label>
-            <select
-              id="clienteId"
-              name="clienteId"
-              value={form.clienteId}
-              onChange={handleChange}
-              disabled={loadingClients}
-              required
-            >
-              <option value="">Seleccioná un cliente…</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.nombre}
-                </option>
-              ))}
-            </select>
+        <form className="form-grid" onSubmit={handleSubmit} onReset={handleReset}>
+          <div className="form-field full-width">
+            <label>Cliente</label>
+            <div className="client-picker">
+              <input
+                type="text"
+                placeholder="Buscá por nombre…"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="client-search"
+              />
+              <select
+                value={form.clienteId}
+                onChange={(event) => setForm((prev) => ({ ...prev, clienteId: event.target.value }))}
+                disabled={loadingClients}
+              >
+                <option value="">Seleccioná un cliente…</option>
+                {filteredClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.nombre}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => {
+                  setShowNewClient((prev) => !prev)
+                  if (!showNewClient && suggestedName) {
+                    setNewClient((prev) => ({ ...prev, nombre: suggestedName }))
+                  }
+                }}
+              >
+                + Nuevo cliente
+              </button>
+            </div>
+            {suggestedName && !showNewClient && (
+              <p className="helper-text">
+                Sugerencia: crear cliente "{suggestedName}" (según tu búsqueda).
+              </p>
+            )}
+            {showNewClient && (
+              <div className="new-client-form">
+                <h4>Crear cliente rápido</h4>
+                <div className="quick-grid">
+                  <div className="form-field">
+                    <label htmlFor="nuevo-nombre">Nombre</label>
+                    <input
+                      id="nuevo-nombre"
+                      name="nuevoNombre"
+                      value={newClient.nombre}
+                      onChange={(event) =>
+                        setNewClient((prev) => ({ ...prev, nombre: event.target.value }))
+                      }
+                      placeholder="Ej: Juan Pérez"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="nuevo-telefono">Teléfono</label>
+                    <input
+                      id="nuevo-telefono"
+                      name="nuevoTelefono"
+                      value={newClient.telefono}
+                      onChange={(event) =>
+                        setNewClient((prev) => ({ ...prev, telefono: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="nuevo-email">Email</label>
+                    <input
+                      id="nuevo-email"
+                      name="nuevoEmail"
+                      type="email"
+                      value={newClient.email}
+                      onChange={(event) =>
+                        setNewClient((prev) => ({ ...prev, email: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="nuevo-direccion">Dirección</label>
+                    <input
+                      id="nuevo-direccion"
+                      name="nuevoDireccion"
+                      value={newClient.direccion}
+                      onChange={(event) =>
+                        setNewClient((prev) => ({ ...prev, direccion: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="quick-actions">
+                  <button
+                    type="button"
+                    className="button ghost"
+                    onClick={() => {
+                      setShowNewClient(false)
+                      setNewClient(INITIAL_NEW_CLIENT)
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="button primary"
+                    onClick={handleCreateClient}
+                    disabled={creatingClient}
+                  >
+                    {creatingClient ? 'Creando…' : 'Crear y seleccionar'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="form-field">
@@ -188,7 +438,7 @@ function BudgetForm() {
               id="estado"
               name="estado"
               value={form.estado}
-              onChange={handleChange}
+              onChange={handleFormChange}
             >
               {ESTADOS.map((estado) => (
                 <option key={estado.value} value={estado.value}>
@@ -198,19 +448,50 @@ function BudgetForm() {
             </select>
           </div>
 
-  <div className="form-field">
+          <div className="form-field">
             <label htmlFor="vehiculo">Vehículo</label>
             <input
               id="vehiculo"
               name="vehiculo"
               placeholder="Marca, modelo, año, patente"
               value={form.vehiculo}
-              onChange={handleChange}
+              onChange={handleFormChange}
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="aseguradora">Aseguradora</label>
+            <input
+              id="aseguradora"
+              name="aseguradora"
+              value={form.aseguradora}
+              onChange={handleFormChange}
+              placeholder="Ej: Sancor, La Segunda…"
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="numeroPoliza">N° de póliza</label>
+            <input
+              id="numeroPoliza"
+              name="numeroPoliza"
+              value={form.numeroPoliza}
+              onChange={handleFormChange}
+            />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="numeroSiniestro">N° de siniestro</label>
+            <input
+              id="numeroSiniestro"
+              name="numeroSiniestro"
+              value={form.numeroSiniestro}
+              onChange={handleFormChange}
             />
           </div>
 
           <div className="form-field full-width">
-            <label>Ítems</label>
+            <label>Ítems del trabajo</label>
             <div className="item-grid">
               <div className="item-row item-header">
                 <strong>Descripción</strong>
@@ -220,37 +501,74 @@ function BudgetForm() {
                 <span></span>
               </div>
               {form.items.map((item, index) => (
-                <div className="item-row" key={index}>
-                  <input
-                    placeholder="Ej: Capot - Reparación de golpe"
-                    value={item.descripcion}
-                    onChange={(event) =>
-                      handleItemChange(index, 'descripcion', event.target.value)
-                    }
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    value={item.manoObra}
-                    onChange={(event) =>
-                      handleItemChange(index, 'manoObra', event.target.value)
-                    }
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    value={item.materiales}
-                    onChange={(event) =>
-                      handleItemChange(index, 'materiales', event.target.value)
-                    }
-                  />
-                  <input
-                    type="number"
-                    value={item.subtotal}
-                    readOnly
-                  />
+                <div className="item-row" key={`item-${index}`}>
+                  <div className="item-body">
+                    <input
+                      placeholder="Ej: Capot - Reparación de golpe"
+                      value={item.descripcion}
+                      onChange={(event) =>
+                        handleItemChange(index, 'descripcion', event.target.value)
+                      }
+                    />
+                    <div className="item-numbers">
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.manoObra}
+                        onChange={(event) =>
+                          handleItemChange(index, 'manoObra', event.target.value)
+                        }
+                        placeholder="Mano de obra"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.materiales}
+                        onChange={(event) =>
+                          handleItemChange(index, 'materiales', event.target.value)
+                        }
+                        placeholder="Materiales"
+                      />
+                      <input type="number" value={calculateSubtotal(item)} readOnly />
+                    </div>
+                    <div className="item-panos">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(item.usaPanos)}
+                          onChange={(event) =>
+                            handleItemChange(index, 'usaPanos', event.target.checked)
+                          }
+                        />
+                        Incluir paños de pintura
+                      </label>
+                      {item.usaPanos && (
+                        <div className="panos-grid">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.cantidadPanos}
+                            onChange={(event) =>
+                              handleItemChange(index, 'cantidadPanos', event.target.value)
+                            }
+                            placeholder="Cantidad"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.precioPorPano}
+                            onChange={(event) =>
+                              handleItemChange(index, 'precioPorPano', event.target.value)
+                            }
+                            placeholder="Precio por paño"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <button
                     type="button"
+                    className="button ghost remove"
                     onClick={() => removeItemRow(index)}
                     disabled={form.items.length === 1}
                   >
@@ -273,8 +591,38 @@ function BudgetForm() {
               name="observaciones"
               rows={4}
               value={form.observaciones}
-              onChange={handleChange}
+              onChange={handleFormChange}
             />
+          </div>
+
+          <div className="form-field full-width">
+            <label htmlFor="adjuntos">Adjuntar imágenes (opcional)</label>
+            <input
+              id="adjuntos"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleAttachmentChange}
+            />
+            {attachments.length > 0 && (
+              <div className="attachments-grid">
+                {attachments.map((attachment, index) => (
+                  <div className="attachment-preview" key={`attachment-${index}`}>
+                    <img src={attachment.preview} alt={attachment.file.name} />
+                    <div className="attachment-info">
+                      <span title={attachment.file.name}>{attachment.file.name}</span>
+                      <button
+                        type="button"
+                        className="button ghost remove"
+                        onClick={() => removeAttachment(index)}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="form-field full-width">
@@ -298,6 +646,15 @@ function BudgetForm() {
                 </strong>
               </span>
               <span>
+                Paños
+                <strong>
+                  {totals.subtotalPanos.toLocaleString('es-AR', {
+                    style: 'currency',
+                    currency: 'ARS',
+                  })}
+                </strong>
+              </span>
+              <span>
                 Total
                 <strong>
                   {totals.totalGeneral.toLocaleString('es-AR', {
@@ -312,12 +669,11 @@ function BudgetForm() {
           {error && <p className="error">{error}</p>}
 
           <div className="form-actions">
-            <button
-              type="submit"
-              className="button primary"
-              disabled={submitting}
-            >
+            <button type="submit" className="button primary" disabled={submitting}>
               {submitting ? 'Guardando…' : 'Guardar presupuesto'}
+            </button>
+            <button type="reset" className="button ghost" disabled={submitting}>
+              Limpiar
             </button>
           </div>
         </form>

@@ -54,6 +54,14 @@ export async function deleteBudget(id) {
   await deleteDoc(ref)
 }
 
+export async function setBudgetStatus(id, estado) {
+  const refBudget = doc(db, COLLECTION, id)
+  await updateDoc(refBudget, {
+    estado: estado ?? 'aprobado',
+    actualizadoEn: serverTimestamp(),
+  })
+}
+
 function parseBudgetSnapshot(snapshot) {
   const data = snapshot.data()
   return {
@@ -63,11 +71,15 @@ function parseBudgetSnapshot(snapshot) {
     clienteTelefono: data.clienteTelefono ?? '',
     estado: data.estado ?? 'borrador',
     vehiculo: data.vehiculo ?? '',
+    aseguradora: data.aseguradora ?? '',
+    numeroPoliza: data.numeroPoliza ?? '',
+    numeroSiniestro: data.numeroSiniestro ?? '',
     items: data.items ?? [],
     subtotalManoObra: data.subtotalManoObra ?? 0,
     subtotalMateriales: data.subtotalMateriales ?? 0,
     totalGeneral: data.totalGeneral ?? 0,
     observaciones: data.observaciones ?? '',
+    adjuntos: data.adjuntos ?? [],
     enviadoPorWhatsapp: data.enviadoPorWhatsapp ?? null,
     creadoEn: data.creadoEn ?? null,
     actualizadoEn: data.actualizadoEn ?? null,
@@ -80,6 +92,9 @@ function formatBudgetData(data) {
     manoObra: Number(item.manoObra ?? 0),
     materiales: Number(item.materiales ?? 0),
     subtotal: Number(item.subtotal ?? 0),
+    usaPanos: Boolean(item.usaPanos ?? false),
+    cantidadPanos: Number(item.cantidadPanos ?? 0),
+    precioPorPano: Number(item.precioPorPano ?? 0),
   }))
 
   return {
@@ -88,12 +103,24 @@ function formatBudgetData(data) {
     clienteTelefono: data.clienteTelefono ?? '',
     estado: data.estado ?? 'borrador',
     vehiculo: data.vehiculo ?? '',
+    aseguradora: data.aseguradora ?? '',
+    numeroPoliza: data.numeroPoliza ?? '',
+    numeroSiniestro: data.numeroSiniestro ?? '',
     items,
     subtotalManoObra: Number(data.subtotalManoObra ?? 0),
     subtotalMateriales: Number(data.subtotalMateriales ?? 0),
     totalGeneral: Number(data.totalGeneral ?? 0),
     observaciones: data.observaciones ?? '',
+    adjuntos: data.adjuntos ?? [],
     enviadoPorWhatsapp: data.enviadoPorWhatsapp ?? null,
   }
+}
+
+export async function setBudgetAttachments(id, attachments) {
+  const refBudget = doc(db, COLLECTION, id)
+  await updateDoc(refBudget, {
+    adjuntos: attachments,
+    actualizadoEn: serverTimestamp(),
+  })
 }
 

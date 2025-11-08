@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Timestamp } from 'firebase/firestore'
 import { getExpense, updateExpense } from '../services/expenses'
+import { listOrders } from '../services/orders'
 import './Expenses.css'
 import './Clients.css'
 
@@ -12,6 +13,7 @@ const TIPOS = [
   { value: 'insumos', label: 'Insumos' },
   { value: 'herramientas', label: 'Herramientas' },
   { value: 'impuestos', label: 'Impuestos' },
+  { value: 'sueldos', label: 'Sueldos' },
   { value: 'otros', label: 'Otros' },
 ]
 
@@ -23,6 +25,8 @@ const METODOS = [
   'Otro',
 ]
 
+const EMPLEADOS = ['Ariel', 'Maximiliano', 'Otro']
+
 const EMPTY_FORM = {
   tipo: 'general',
   descripcion: '',
@@ -30,6 +34,9 @@ const EMPTY_FORM = {
   fecha: '',
   metodoPago: '',
   notas: '',
+  ordenId: '',
+  empleadoNombre: '',
+  empleadoCustom: '',
 }
 
 function ExpenseEdit() {
@@ -39,14 +46,19 @@ function ExpenseEdit() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
 
   useEffect(() => {
     const fetchExpense = async () => {
       try {
         setLoading(true)
-        const expense = await getExpense(id)
+        const [expense, ordersData] = await Promise.all([
+          getExpense(id),
+          listOrders(),
+        ])
         if (!expense) {
-          setError('No encontramos este gasto.')
+          setError('No encontramos este egreso.')
           return
         }
 
@@ -59,12 +71,30 @@ function ExpenseEdit() {
             : '',
           metodoPago: expense.metodoPago ?? '',
           notas: expense.notas ?? '',
+          ordenId: expense.ordenId ?? '',
+          empleadoNombre: EMPLEADOS.includes(expense.empleadoNombre)
+            ? expense.empleadoNombre
+            : expense.empleadoNombre
+              ? 'Otro'
+              : '',
+          empleadoCustom:
+            !EMPLEADOS.includes(expense.empleadoNombre) && expense.empleadoNombre
+              ? expense.empleadoNombre
+              : '',
         })
+
+        setOrders(
+          ordersData.map((order) => ({
+            id: order.id,
+            label: `${order.clienteNombre || 'Cliente'} · ${order.vehiculo || 'Vehículo'}`,
+          })),
+        )
       } catch (err) {
         console.error(err)
-        setError('Ocurrió un error al cargar el gasto.')
+        setError('Ocurrió un error al cargar el egreso.')
       } finally {
         setLoading(false)
+        setOrdersLoading(false)
       }
     }
 
@@ -73,19 +103,40 @@ function ExpenseEdit() {
 
   const handleChange = (event) => {
     const { name, value } = event.target
+
+    if (name === 'tipo') {
+      setForm((prev) => ({
+        ...prev,
+        [name]: value,
+        ordenId: value === 'insumos' ? prev.ordenId : '',
+        empleadoNombre: value === 'sueldos' ? prev.empleadoNombre : '',
+        empleadoCustom: value === 'sueldos' ? prev.empleadoCustom : '',
+      }))
+      return
+    }
+
+    if (name === 'empleadoNombre') {
+      setForm((prev) => ({
+        ...prev,
+        empleadoNombre: value,
+        empleadoCustom: value === 'Otro' ? prev.empleadoCustom : '',
+      }))
+      return
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
 
-    if (!form.descripcion.trim()) {
-      setError('La descripción es obligatoria.')
+    if (form.tipo !== 'sueldos' && !form.descripcion.trim()) {
+      setError('La descripción del egreso es obligatoria.')
       return
     }
 
     if (!form.monto || Number(form.monto) <= 0) {
-      setError('El monto debe ser mayor a 0.')
+      setError('El monto del egreso debe ser mayor a 0.')
       return
     }
 
@@ -97,20 +148,49 @@ function ExpenseEdit() {
       const timestamp = Timestamp.fromDate(fechaDate)
       const periodo = form.fecha.slice(0, 7)
 
+      let empleadoFinal = ''
+      if (form.tipo === 'sueldos') {
+        empleadoFinal =
+          form.empleadoNombre === 'Otro'
+            ? form.empleadoCustom.trim()
+            : form.empleadoNombre.trim()
+
+        if (!empleadoFinal) {
+          setError('Seleccioná el empleado al que corresponde el sueldo.')
+          setSubmitting(false)
+          return
+        }
+      }
+
+      const descripcionFinal = form.descripcion.trim()
+        ? form.descripcion.trim()
+        : form.tipo === 'sueldos'
+          ? `Pago de sueldo - ${empleadoFinal}`
+          : ''
+
+      if (!descripcionFinal) {
+        setError('La descripción del egreso es obligatoria.')
+        setSubmitting(false)
+        return
+      }
+
       await updateExpense(id, {
         tipo: form.tipo,
-        descripcion: form.descripcion.trim(),
+        descripcion: descripcionFinal,
         monto: Number(form.monto),
         fecha: timestamp,
         metodoPago: form.metodoPago.trim(),
         notas: form.notas.trim(),
         periodo,
+        ordenId:
+          form.tipo === 'insumos' && form.ordenId ? form.ordenId : null,
+        empleadoNombre: empleadoFinal,
       })
 
-      navigate('/gastos')
+      navigate('/egresos/gastos')
     } catch (err) {
       console.error(err)
-      setError('No pudimos actualizar el gasto. Probá de nuevo.')
+      setError('No pudimos actualizar el egreso. Probá de nuevo.')
     } finally {
       setSubmitting(false)
     }
@@ -119,7 +199,7 @@ function ExpenseEdit() {
   if (loading) {
     return (
       <div className="expenses-page">
-        <p>Cargando gasto…</p>
+        <p>Cargando egreso…</p>
       </div>
     )
   }
@@ -128,11 +208,11 @@ function ExpenseEdit() {
     return (
       <div className="expenses-page">
         <header className="page-header">
-          <h2>Editar gasto</h2>
+          <h2>Editar egreso</h2>
         </header>
         <div className="card">
           <p className="error">{error}</p>
-          <Link to="/gastos" className="button">
+          <Link to="/egresos/gastos" className="button">
             ← Volver
           </Link>
         </div>
@@ -144,10 +224,10 @@ function ExpenseEdit() {
     <div className="expenses-page">
       <header className="page-header">
         <div>
-          <h2>Editar gasto</h2>
-          <p>Actualizá los datos del gasto seleccionado.</p>
+          <h2>Editar egreso</h2>
+          <p>Actualizá los datos del egreso seleccionado.</p>
         </div>
-        <Link to="/gastos" className="button">
+        <Link to="/egresos/gastos" className="button">
           ← Volver
         </Link>
       </header>
@@ -223,6 +303,64 @@ function ExpenseEdit() {
               ))}
             </select>
           </div>
+
+          {form.tipo === 'insumos' && (
+            <div className="form-field">
+              <label htmlFor="ordenId">Orden de trabajo</label>
+              <select
+                id="ordenId"
+                name="ordenId"
+                value={form.ordenId}
+                onChange={handleChange}
+                disabled={ordersLoading}
+              >
+                <option value="">Sin orden</option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.label}
+                  </option>
+                ))}
+              </select>
+              <small>
+                Si corresponde a una orden, seleccionála para ver este egreso en
+                su detalle.
+              </small>
+            </div>
+          )}
+
+          {form.tipo === 'sueldos' && (
+            <>
+              <div className="form-field">
+                <label htmlFor="empleadoNombre">Empleado</label>
+                <select
+                  id="empleadoNombre"
+                  name="empleadoNombre"
+                  value={form.empleadoNombre}
+                  onChange={handleChange}
+                >
+                  <option value="">Seleccioná…</option>
+                  {EMPLEADOS.map((empleado) => (
+                    <option key={empleado} value={empleado}>
+                      {empleado}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {form.empleadoNombre === 'Otro' && (
+                <div className="form-field">
+                  <label htmlFor="empleadoCustom">Nombre del empleado</label>
+                  <input
+                    id="empleadoCustom"
+                    name="empleadoCustom"
+                    value={form.empleadoCustom}
+                    onChange={handleChange}
+                    placeholder="Ej: Juan Pérez"
+                  />
+                </div>
+              )}
+            </>
+          )}
 
           <div className="form-field full-width">
             <label htmlFor="notas">Notas</label>

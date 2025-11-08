@@ -66,6 +66,8 @@ function parseExpenseSnapshot(snapshot) {
     comprobante: data.comprobante ?? null,
     notas: data.notas ?? '',
     periodo: data.periodo ?? '',
+    ordenId: data.ordenId ?? null,
+    empleadoNombre: data.empleadoNombre ?? '',
     creadoEn: data.creadoEn ?? null,
     actualizadoEn: data.actualizadoEn ?? null,
   }
@@ -90,6 +92,8 @@ function formatExpenseData(data) {
     comprobante: data.comprobante ?? null,
     notas: data.notas ?? '',
     periodo,
+    ordenId: data.ordenId ?? null,
+    empleadoNombre: data.empleadoNombre ?? '',
   }
 }
 

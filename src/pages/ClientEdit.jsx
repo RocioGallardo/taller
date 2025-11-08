@@ -12,7 +12,7 @@ const EMPTY_STATE = {
   telefono: '',
   email: '',
   direccion: '',
-  vehiculo: '',
+  vehiculos: [{ descripcion: '', principal: true }],
   notas: '',
 }
 
@@ -39,10 +39,14 @@ function ClientEdit() {
           telefono: client.telefono ?? '',
           email: client.email ?? '',
           direccion: client.direccion ?? '',
-          vehiculo:
-            client.vehiculos?.find((veh) => veh.principal)?.descripcion ??
-            client.vehiculos?.[0]?.descripcion ??
-            '',
+          vehiculos:
+            client.vehiculos?.length
+              ? client.vehiculos.map((vehiculo, index) => ({
+                  descripcion: vehiculo.descripcion ?? '',
+                  principal:
+                    vehiculo.principal ?? index === 0,
+                }))
+              : [{ descripcion: '', principal: true }],
           notas: client.notas ?? '',
         })
       } catch (err) {
@@ -61,6 +65,39 @@ function ClientEdit() {
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
+  const handleVehicleChange = (index, value) => {
+    setForm((prev) => {
+      const vehiculos = prev.vehiculos.map((vehiculo, idx) =>
+        idx === index ? { ...vehiculo, descripcion: value } : vehiculo,
+      )
+      return { ...prev, vehiculos }
+    })
+  }
+
+  const handlePrincipalChange = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      vehiculos: prev.vehiculos.map((vehiculo, idx) => ({
+        ...vehiculo,
+        principal: idx === index,
+      })),
+    }))
+  }
+
+  const addVehicleRow = () => {
+    setForm((prev) => ({
+      ...prev,
+      vehiculos: [...prev.vehiculos, { descripcion: '', principal: false }],
+    }))
+  }
+
+  const removeVehicleRow = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      vehiculos: prev.vehiculos.filter((_, idx) => idx !== index),
+    }))
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (!form.nombre.trim()) {
@@ -71,7 +108,17 @@ function ClientEdit() {
     try {
       setSubmitting(true)
       setError(null)
-      const vehiculoDescripcion = form.vehiculo.trim()
+      const vehiculos = form.vehiculos
+        .map((vehiculo, index) => ({
+          descripcion: vehiculo.descripcion.trim(),
+          principal: vehiculo.principal ?? index === 0,
+        }))
+        .filter((vehiculo) => vehiculo.descripcion.length > 0)
+
+      const principalIndex = vehiculos.findIndex((vehiculo) => vehiculo.principal)
+      if (vehiculos.length && principalIndex === -1) {
+        vehiculos[0].principal = true
+      }
 
       await updateClient(id, {
         nombre: form.nombre.trim(),
@@ -79,14 +126,7 @@ function ClientEdit() {
         email: form.email.trim() || null,
         direccion: form.direccion.trim() || null,
         notas: form.notas.trim(),
-        vehiculos: vehiculoDescripcion
-          ? [
-              {
-                descripcion: vehiculoDescripcion,
-                principal: true,
-              },
-            ]
-          : [],
+        vehiculos,
       })
 
       navigate(`/clientes/${id}`)
@@ -144,7 +184,7 @@ function ClientEdit() {
       <header className="page-header">
         <div>
           <h2>Editar cliente</h2>
-          <p>Actualizá los datos del cliente seleccionado.</p>
+          <p>Actualizá los datos de contacto y los vehículos asociados.</p>
         </div>
         <div className="header-actions">
           <Link to={`/clientes/${id}`} className="button">
@@ -206,13 +246,44 @@ function ClientEdit() {
           </div>
 
           <div className="form-field">
-            <label htmlFor="vehiculo">Vehículo principal</label>
-            <input
-              id="vehiculo"
-              name="vehiculo"
-              value={form.vehiculo}
-              onChange={handleChange}
-            />
+            <label>Vehículos</label>
+            <div className="vehicle-list">
+              {form.vehiculos.map((vehiculo, index) => (
+                <div className="vehicle-row" key={`vehiculo-${index}`}>
+                  <input
+                    value={vehiculo.descripcion}
+                    placeholder="Marca, modelo, año, patente"
+                    onChange={(event) =>
+                      handleVehicleChange(index, event.target.value)
+                    }
+                  />
+                  <label className="vehicle-principal">
+                    <input
+                      type="radio"
+                      name="vehiculoPrincipal"
+                      checked={Boolean(vehiculo.principal)}
+                      onChange={() => handlePrincipalChange(index)}
+                    />
+                    Principal
+                  </label>
+                  <button
+                    type="button"
+                    className="button ghost remove"
+                    onClick={() => removeVehicleRow(index)}
+                    disabled={form.vehiculos.length === 1}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="button ghost"
+                onClick={addVehicleRow}
+              >
+                + Agregar vehículo
+              </button>
+            </div>
           </div>
 
           <div className="form-field full-width">

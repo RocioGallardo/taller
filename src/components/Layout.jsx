@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import './Layout.css'
 
@@ -5,14 +6,36 @@ const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
   { to: '/clientes', label: 'Clientes' },
   { to: '/presupuestos', label: 'Presupuestos' },
-  { to: '/gastos', label: 'Gastos' },
-  { to: '/pagos', label: 'Sueldos' },
+  { to: '/ordenes', label: 'Órdenes' },
+  { to: '/egresos', label: 'Egresos' },
+  { to: '/ingresos', label: 'Ingresos' },
+  { to: '/reportes', label: 'Reportes' },
 ]
 
 function Layout() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const toggleMenu = () => setIsMenuOpen((prev) => !prev)
+  const closeMenu = () => setIsMenuOpen(false)
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell ${isMenuOpen ? 'menu-open' : ''}`}>
+      <header className="mobile-header">
+        <button
+          type="button"
+          className="menu-toggle"
+          onClick={toggleMenu}
+          aria-label="Abrir menú de navegación"
+          aria-expanded={isMenuOpen}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        <h1>Taller Manager</h1>
+      </header>
+
+      <aside className={`sidebar ${isMenuOpen ? 'open' : ''}`}>
         <header className="sidebar-header">
           <h1>Taller Manager</h1>
         </header>
@@ -25,12 +48,15 @@ function Layout() {
                 isActive ? 'nav-link active' : 'nav-link'
               }
               end={link.to === '/'}
+              onClick={closeMenu}
             >
               {link.label}
             </NavLink>
           ))}
         </nav>
       </aside>
+
+      {isMenuOpen && <div className="backdrop" onClick={closeMenu} />}
 
       <main className="content">
         <Outlet />

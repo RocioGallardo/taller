@@ -1,0 +1,353 @@
+.orders-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.filters .form-field {
+  margin: 0;
+}
+
+.table-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.orders-table th,
+.orders-table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.orders-table th {
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.orders-table tr:last-child td {
+  border-bottom: none;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-pendiente {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.status-en_proceso {
+  background-color: rgba(14, 165, 233, 0.18);
+  color: var(--color-accent-strong);
+}
+
+.status-terminada,
+.status-entregada {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+
+.status-cancelada {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.timeline {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.timeline-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mobile-card {
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  display: grid;
+  gap: 0.75rem;
+  box-shadow:
+    0 10px 15px -3px rgba(15, 23, 42, 0.08),
+    0 4px 6px -4px rgba(15, 23, 42, 0.08);
+}
+
+.mobile-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mobile-card-header span {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.mobile-card-header .amount {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.mobile-card-header .amount.negative {
+  color: var(--color-danger-text);
+}
+
+.mobile-card-body {
+  display: grid;
+  gap: 0.5rem;
+  color: var(--color-muted);
+}
+
+.mobile-card-body small {
+  color: var(--color-muted);
+}
+
+.mobile-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.expenses-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.expenses-table th,
+.expenses-table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.expenses-table th {
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.expenses-table tr:last-child td {
+  border-bottom: none;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.85rem;
+}
+
+.summary-card {
+  border-radius: 0.75rem;
+  background-color: var(--color-surface);
+  padding: 0.9rem 1rem;
+  box-shadow:
+    0 6px 10px -4px rgba(15, 23, 42, 0.12),
+    0 2px 4px -2px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.summary-card span {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.summary-card .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.summary-icon {
+  font-size: 1.1rem;
+}
+
+.summary-label-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.summary-label-group span {
+  font-size: 0.74rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.summary-label-group .metric {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.summary-label-group.state-en-proceso .metric {
+  color: var(--color-accent-strong);
+}
+
+.summary-label-group.state-terminada .metric {
+  color: var(--color-success-text);
+}
+
+.summary-label-group.state-cancelada .metric {
+  color: var(--color-danger-text);
+}
+
+.summary-card .detail {
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.summary-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.summary-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.summary-link:hover {
+  text-decoration: underline;
+}
+
+.progress-card {
+  gap: 0.5rem;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--color-border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+}
+
+.incomes-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.incomes-table th,
+.incomes-table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.incomes-table th {
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.incomes-table tr:last-child td {
+  border-bottom: none;
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.clickable-row:hover {
+  background-color: rgba(148, 163, 184, 0.15);
+}
+
+.mobile-card-button {
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 1rem;
+  background-color: var(--color-surface);
+  display: grid;
+  gap: 0.75rem;
+  box-shadow:
+    0 10px 15px -3px rgba(15, 23, 42, 0.08),
+    0 4px 6px -4px rgba(15, 23, 42, 0.08);
+}
+
+.mobile-card-button:focus {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.allocations-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none;
+  }
+
+  .mobile-only {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

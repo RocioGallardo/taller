@@ -14,6 +14,10 @@ function BudgetsList() {
   const [budgets, setBudgets] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [periodFilter, setPeriodFilter] = useState('mes')
+  const [monthFilter, setMonthFilter] = useState(() =>
+    new Date().toISOString().slice(0, 7),
+  )
 
   const loadBudgets = async () => {
     try {
@@ -35,10 +39,34 @@ function BudgetsList() {
     loadBudgets()
   }, [])
 
-  const emptyState = useMemo(
-    () => !loading && !error && budgets.length === 0,
-    [budgets.length, error, loading],
-  )
+  const filteredBudgets = useMemo(() => {
+    const sorted = [...budgets].sort((a, b) => {
+      const dateA = a.creadoEn?.toDate ? a.creadoEn.toDate().getTime() : 0
+      const dateB = b.creadoEn?.toDate ? b.creadoEn.toDate().getTime() : 0
+      return dateB - dateA
+    })
+
+    if (periodFilter === 'mes') {
+      if (!monthFilter) return sorted
+      return sorted.filter((budget) => {
+        const periodo = budget.creadoEn?.toDate
+          ? budget.creadoEn.toDate().toISOString().slice(0, 7)
+          : null
+        return periodo ? periodo === monthFilter : true
+      })
+    }
+
+    const now = new Date()
+    const start = new Date(now.getFullYear() - 1, now.getMonth(), 1)
+
+    return sorted.filter((budget) => {
+      const date = budget.creadoEn?.toDate ? budget.creadoEn.toDate() : null
+      if (!date) return true
+      return date >= start
+    })
+  }, [budgets, monthFilter, periodFilter])
+
+  const emptyState = useMemo(() => !loading && !error && filteredBudgets.length === 0, [filteredBudgets.length, loading, error])
 
   return (
     <div className="budgets-page">
@@ -62,7 +90,32 @@ function BudgetsList() {
         </div>
       </header>
 
-      <div className="card">
+      <div className="filters card">
+        <div className="form-field">
+          <label htmlFor="periodFilter">Período</label>
+          <select
+            id="periodFilter"
+            value={periodFilter}
+            onChange={(event) => setPeriodFilter(event.target.value)}
+          >
+            <option value="mes">Mes actual</option>
+            <option value="anio">Últimos 12 meses</option>
+          </select>
+        </div>
+        {periodFilter === 'mes' && (
+          <div className="form-field">
+            <label htmlFor="monthFilter">Mes</label>
+            <input
+              id="monthFilter"
+              type="month"
+              value={monthFilter}
+              onChange={(event) => setMonthFilter(event.target.value)}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="card table-card">
         {loading && <p>Cargando presupuestos…</p>}
         {error && <p className="error">{error}</p>}
         {emptyState && (
@@ -72,50 +125,91 @@ function BudgetsList() {
           </div>
         )}
 
-        {!loading && !error && budgets.length > 0 && (
-          <table className="budgets-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Vehículo</th>
-                <th>Estado</th>
-                <th>Total</th>
-                <th>Fecha</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {budgets.map((budget) => {
+        {!loading && !error && filteredBudgets.length > 0 && (
+          <>
+            <div className="table-scroll desktop-only">
+            <table className="budgets-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Vehículo</th>
+                  <th>Estado</th>
+                  <th>Total</th>
+                  <th>Fecha</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredBudgets.map((budget) => {
+                  const estado = ESTADO_LABELS[budget.estado] ?? budget.estado
+                  const creadoEn = budget.creadoEn?.toDate
+                    ? budget.creadoEn.toDate().toLocaleDateString('es-AR')
+                    : '—'
+                  return (
+                    <tr key={budget.id}>
+                      <td>{budget.clienteNombre || '—'}</td>
+                      <td>{budget.vehiculo || '—'}</td>
+                      <td>
+                        <span className={`badge status-${budget.estado}`}>
+                          {estado}
+                        </span>
+                      </td>
+                      <td>
+                        {budget.totalGeneral.toLocaleString('es-AR', {
+                          style: 'currency',
+                          currency: 'ARS',
+                        })}
+                      </td>
+                      <td>{creadoEn}</td>
+                      <td className="table-actions">
+                        <Link to={`/presupuestos/${budget.id}`} className="link">
+                          Ver detalle
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+            <div className="mobile-only mobile-list">
+              {filteredBudgets.map((budget) => {
                 const estado = ESTADO_LABELS[budget.estado] ?? budget.estado
                 const creadoEn = budget.creadoEn?.toDate
                   ? budget.creadoEn.toDate().toLocaleDateString('es-AR')
                   : '—'
                 return (
-                  <tr key={budget.id}>
-                    <td>{budget.clienteNombre || '—'}</td>
-                    <td>{budget.vehiculo || '—'}</td>
-                    <td>
+                  <div className="mobile-card" key={budget.id}>
+                    <div className="mobile-card-header">
+                      <div>
+                        <strong>{budget.clienteNombre || '—'}</strong>
+                        <span>{budget.vehiculo || '—'}</span>
+                      </div>
                       <span className={`badge status-${budget.estado}`}>
                         {estado}
                       </span>
-                    </td>
-                    <td>
-                      {budget.totalGeneral.toLocaleString('es-AR', {
-                        style: 'currency',
-                        currency: 'ARS',
-                      })}
-                    </td>
-                    <td>{creadoEn}</td>
-                    <td className="table-actions">
-                      <Link to={`/presupuestos/${budget.id}`} className="link">
-                        Ver detalle
-                      </Link>
-                    </td>
-                  </tr>
+                    </div>
+                    <div className="mobile-card-body">
+                      <p>
+                        <small>Fecha:</small> {creadoEn}
+                      </p>
+                      <p className="amount">
+                        {budget.totalGeneral.toLocaleString('es-AR', {
+                          style: 'currency',
+                          currency: 'ARS',
+                        })}
+                      </p>
+                      <div className="mobile-actions">
+                        <Link to={`/presupuestos/${budget.id}`} className="link">
+                          Ver detalle
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
     </div>
